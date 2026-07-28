@@ -2,7 +2,9 @@ import json
 from unittest.mock import MagicMock, patch
 
 from agent_radar.llm.client import (
+    ChatResponse,
     DeepSeekChatClient,
+    ResilientClient,
     ToolCall,
     _parse_dict_tool_calls,
     _parse_tool_calls,
@@ -82,3 +84,44 @@ def test_deepseek_chat_excludes_websearch_and_parses():
     assert resp.tool_calls == [
         ToolCall(id="1", name="github_stats", arguments={"repo": "x/y"}),
     ]
+
+
+class _PrimFail:
+    def chat(self, m, t, tool_choice="auto"):
+        raise RuntimeError("glm down")
+
+
+class _FallOk:
+    def __init__(self):
+        self.calls = 0
+
+    def chat(self, m, t, tool_choice="auto"):
+        self.calls += 1
+        return ChatResponse(content=f"fall{self.calls}")
+
+
+def test_resilient_switches_then_stays_on_fallback():
+    fall = _FallOk()
+    rc = ResilientClient(_PrimFail(), fall)
+    assert rc.chat([], []).content == "fall1"
+    assert rc.chat([], []).content == "fall2"
+    assert fall.calls == 2
+
+
+def test_resilient_reraises_when_no_fallback():
+    rc = ResilientClient(_PrimFail(), None)
+    raised = False
+    try:
+        rc.chat([], [])
+    except RuntimeError:
+        raised = True
+    assert raised
+
+
+def test_resilient_on_switch_called_once():
+    switched = []
+    rc = ResilientClient(_PrimFail(), _FallOk(),
+                         on_switch=lambda: switched.append(True))
+    rc.chat([], [])
+    rc.chat([], [])
+    assert switched == [True]

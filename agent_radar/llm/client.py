@@ -119,3 +119,31 @@ class DeepSeekChatClient:
             tool_calls=_parse_dict_tool_calls(msg.get("tool_calls")),
             raw=data,
         )
+
+
+class ResilientClient:
+    """Wraps a primary ChatClient with an optional fallback. If the primary
+    raises on chat(), marks itself degraded and routes to fallback for the
+    rest of the session. `on_switch` (optional) is called once on switch."""
+
+    def __init__(self, primary: ChatClient, fallback: ChatClient | None = None,
+                 on_switch=None):
+        self._primary = primary
+        self._fallback = fallback
+        self._degraded = False
+        self._on_switch = on_switch
+
+    def chat(self, messages, tools, tool_choice="auto") -> ChatResponse:
+        if self._degraded:
+            if self._fallback is None:
+                raise RuntimeError("degraded but no fallback configured")
+            return self._fallback.chat(messages, tools, tool_choice)
+        try:
+            return self._primary.chat(messages, tools, tool_choice)
+        except Exception:
+            if self._fallback is None:
+                raise
+            self._degraded = True
+            if self._on_switch is not None:
+                self._on_switch()
+            return self._fallback.chat(messages, tools, tool_choice)
