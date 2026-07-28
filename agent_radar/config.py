@@ -12,6 +12,8 @@ class Config:
     model: str
     db_path: str
     max_iterations: int = 8
+    deepseek_api_key: str | None = None
+    deepseek_model: str = "deepseek-chat"
 
 
 def load_config(env_file: str = ".env") -> Config:
@@ -23,4 +25,6 @@ def load_config(env_file: str = ".env") -> Config:
         model=os.environ.get("AGENT_RADAR_MODEL", "glm-4"),
         db_path=os.environ.get("AGENT_RADAR_DB_PATH", "agent_radar.db"),
         max_iterations=int(os.environ.get("AGENT_RADAR_MAX_ITERATIONS", "8")),
+        deepseek_api_key=os.environ.get("DEEPSEEK_API_KEY") or None,
+        deepseek_model=os.environ.get("AGENT_RADAR_DEEPSEEK_MODEL", "deepseek-chat"),
     )
