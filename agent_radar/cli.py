@@ -6,7 +6,7 @@ from agent_radar.agent.tools import memory as memory_tool
 from agent_radar.agent.tools import profile as profile_tool
 from agent_radar.config import Config, load_config
 from agent_radar.data.github_client import GitHubClient
-from agent_radar.llm.client import ZhipuChatClient
+from agent_radar.llm.client import DeepSeekChatClient, ResilientClient, ZhipuChatClient
 from agent_radar.store.db import get_connection, init_db
 from agent_radar.store.profile import load_profile, patch_profile
 
@@ -41,6 +41,28 @@ def onboard_profile(conn) -> None:
         print("已记录你的背景。\n")
 
 
+def build_client(config: Config):
+    """Build the ChatClient: Zhipu primary, with DeepSeek fallback if configured."""
+    primary = ZhipuChatClient(config.zhipu_api_key, model=config.model)
+    if config.deepseek_api_key:
+        fallback = DeepSeekChatClient(config.deepseek_api_key, model=config.deepseek_model)
+        return ResilientClient(
+            primary,
+            fallback,
+            on_switch=lambda: print("⚠️ GLM 不可用,已切换到 DeepSeek(本轮起无法联网搜索)"),
+        )
+    return primary
+
+
+def run_turn(loop, user: str):
+    """Run one conversation turn. Return Answer, or None on failure (after printing)."""
+    try:
+        return loop.run(user)
+    except Exception as e:  # noqa: BLE001 - keep the REPL alive
+        print(f"\n⚠️ 模型调用失败,请检查 API key/余额/网络后重试。({e})")
+        return None
+
+
 def main(config: Config | None = None) -> None:
     config = config or load_config()
     if not config.zhipu_api_key:
@@ -50,7 +72,7 @@ def main(config: Config | None = None) -> None:
     init_db(conn)
     onboard_profile(conn)
 
-    client = ZhipuChatClient(config.zhipu_api_key, model=config.model)
+    client = build_client(config)
     registry = build_registry(conn, GitHubClient(token=config.github_token))
     loop = AgentLoop(client, registry, max_iterations=config.max_iterations)
 
@@ -66,7 +88,9 @@ def main(config: Config | None = None) -> None:
         if user == "/profile":
             print(load_profile(conn))
             continue
-        ans = loop.run(user)
+        ans = run_turn(loop, user)
+        if ans is None:
+            continue
         print(f"\nAgentRadar: {ans.content}")
         if ans.tools_used:
             print(f"(使用工具: {', '.join(ans.tools_used)})")
