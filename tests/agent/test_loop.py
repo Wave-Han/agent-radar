@@ -1,4 +1,9 @@
-from agent_radar.agent.loop import AgentLoop
+from agent_radar.agent.loop import (
+    INDUSTRY_BRIEF_TEMPLATE,
+    JOB_CARD_TEMPLATE,
+    AgentLoop,
+    SYSTEM_PROMPT,
+)
 from agent_radar.agent.registry import ToolRegistry
 from agent_radar.llm.client import ChatResponse, ToolCall
 
@@ -60,3 +65,27 @@ def test_loop_sends_system_prompt_first():
     AgentLoop(_C(), _echo_registry()).run("hi")
     assert seen["first_role"] == "system"
     assert "AgentRadar" in seen["first_text"]
+
+
+def test_system_prompt_covers_jobs_and_industry():
+    assert "就业" in SYSTEM_PROMPT
+    assert "行业动态" in SYSTEM_PROMPT
+
+
+def test_job_card_template_has_required_fields():
+    assert "岗位方向" in JOB_CARD_TEMPLATE
+    assert "薪资" in JOB_CARD_TEMPLATE
+    assert "近似" in JOB_CARD_TEMPLATE
+    assert "来源" in JOB_CARD_TEMPLATE
+
+
+def test_industry_brief_template_has_required_fields():
+    assert "动态" in INDUSTRY_BRIEF_TEMPLATE
+    assert "趋势" in INDUSTRY_BRIEF_TEMPLATE
+    assert "来源" in INDUSTRY_BRIEF_TEMPLATE
+
+
+def test_system_prompt_embeds_both_templates():
+    # The f-string prompt must contain the template fields so the model sees the format.
+    assert "岗位方向" in SYSTEM_PROMPT
+    assert "近期重要动态" in SYSTEM_PROMPT
