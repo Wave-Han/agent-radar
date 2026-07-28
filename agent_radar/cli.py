@@ -1,5 +1,5 @@
 """CLI REPL: wiring, first-run profile onboarding, conversation loop."""
-from agent_radar.agent.loop import AgentLoop
+from agent_radar.agent.orchestrator import Orchestrator
 from agent_radar.agent.registry import ToolRegistry
 from agent_radar.agent.tools import github_stats as gh_tool
 from agent_radar.agent.tools import memory as memory_tool
@@ -54,6 +54,11 @@ def build_client(config: Config):
     return primary
 
 
+def build_orchestrator(client, registry, max_iterations: int = 8):
+    """Build the multi-agent Orchestrator (routes to dimension experts)."""
+    return Orchestrator(client, registry, max_iterations=max_iterations)
+
+
 def run_turn(loop, user: str):
     """Run one conversation turn. Return Answer, or None on failure (after printing)."""
     try:
@@ -74,7 +79,7 @@ def main(config: Config | None = None) -> None:
 
     client = build_client(config)
     registry = build_registry(conn, GitHubClient(token=config.github_token))
-    loop = AgentLoop(client, registry, max_iterations=config.max_iterations)
+    loop = build_orchestrator(client, registry, max_iterations=config.max_iterations)
 
     print("AgentRadar 就绪。输入问题,/profile 查看画像,Ctrl+C 退出。\n")
     while True:

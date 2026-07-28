@@ -63,3 +63,15 @@ def test_run_turn_returns_answer():
     ans = cli.run_turn(_GoodLoop(), "hi")
     assert ans.content == "hello"
     assert ans.tools_used == ["github_stats"]
+
+
+def test_build_orchestrator_returns_orchestrator():
+    from agent_radar.agent.orchestrator import Orchestrator
+
+    class _C:
+        def chat(self, m, t, tool_choice="auto"):
+            from agent_radar.llm.client import ChatResponse
+            return ChatResponse(content="general")
+
+    orch = cli.build_orchestrator(_C(), object())  # registry unused at construction
+    assert isinstance(orch, Orchestrator)
