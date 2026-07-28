@@ -1,5 +1,7 @@
 """LLM chat client: protocol, Zhipu GLM implementation, tool-call parsing."""
 import json
+
+import requests
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -68,4 +70,52 @@ class ZhipuChatClient:
             content=getattr(msg, "content", None),
             tool_calls=_parse_tool_calls(getattr(msg, "tool_calls", None)),
             raw=resp,
+        )
+
+
+def _parse_dict_tool_calls(tool_calls_list) -> list[ToolCall]:
+    """Parse OpenAI/DeepSeek-style tool_calls (list of dicts) into ToolCall."""
+    calls: list[ToolCall] = []
+    for tc in tool_calls_list or []:
+        fn = tc.get("function") or {}
+        try:
+            args = json.loads(fn.get("arguments")) if fn.get("arguments") else {}
+        except (TypeError, ValueError):
+            args = {}
+        calls.append(ToolCall(id=tc.get("id", ""), name=fn.get("name", ""), arguments=args))
+    return calls
+
+
+class DeepSeekChatClient:
+    """DeepSeek chat client (OpenAI-compatible). Supports function calling.
+    Has NO built-in web_search — only function tools are sent."""
+
+    BASE_URL = "https://api.deepseek.com"
+
+    def __init__(self, api_key: str, model: str = "deepseek-chat"):
+        self._api_key = api_key
+        self._model = model
+
+    def chat(self, messages, tools, tool_choice="auto") -> ChatResponse:
+        resp = requests.post(
+            f"{self.BASE_URL}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {self._api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": self._model,
+                "messages": messages,
+                "tools": tools,
+                "tool_choice": tool_choice,
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        msg = data["choices"][0]["message"]
+        return ChatResponse(
+            content=msg.get("content"),
+            tool_calls=_parse_dict_tool_calls(msg.get("tool_calls")),
+            raw=data,
         )
