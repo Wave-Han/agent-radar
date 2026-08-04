@@ -37,6 +37,13 @@ python -m agent_radar.cli
 
 输入 `/profile` 查看画像,Ctrl+C 退出。
 
+## Web UI(可选)
+
+```bash
+python -m agent_radar.web
+```
+浏览器打开 http://127.0.0.1:8000 — 网页聊天 + 一键「生成周报」(配置同 `.env`)。
+
 ## 模型与容错(可选)
 
 - 默认用**智谱 GLM**(内置联网 `web_search`,推荐)。

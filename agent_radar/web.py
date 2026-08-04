@@ -4,6 +4,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from agent_radar.agent.loop import Answer
+from agent_radar.config import load_config
 
 
 class ChatIn(BaseModel):
@@ -96,3 +97,29 @@ def build_app(orchestrator, brief_fn):
         return {"brief": brief_fn()}
 
     return app
+
+
+def main():
+    import uvicorn
+    from agent_radar.agent.orchestrator import Orchestrator
+    from agent_radar.brief import generate_brief
+    from agent_radar.cli import build_client, build_registry
+    from agent_radar.data.github_client import GitHubClient
+    from agent_radar.store.db import get_connection, init_db
+
+    config = load_config()
+    if not config.zhipu_api_key:
+        raise SystemExit("缺少 ZHIPU_API_KEY,请在 .env 中配置(参考 .env.example)。")
+
+    conn = get_connection(config.db_path)
+    init_db(conn)
+    client = build_client(config)
+    registry = build_registry(conn, GitHubClient(token=config.github_token))
+    orchestrator = Orchestrator(client, registry, max_iterations=config.max_iterations)
+    brief_fn = lambda: generate_brief(client, registry, max_iterations=config.max_iterations)
+    app = build_app(orchestrator, brief_fn)
+    uvicorn.run(app, host="127.0.0.1", port=8000)
+
+
+if __name__ == "__main__":
+    main()

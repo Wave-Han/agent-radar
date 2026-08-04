@@ -35,3 +35,22 @@ def test_brief_returns_brief():
     r = _client().post("/brief")
     assert r.status_code == 200
     assert "假周报" in r.json()["brief"]
+
+
+def test_main_raises_without_key(monkeypatch):
+    import agent_radar.web as web
+    from agent_radar.config import Config
+
+    monkeypatch.setattr(
+        web,
+        "load_config",
+        lambda *a, **k: Config(
+            zhipu_api_key="", github_token=None, model="glm-4", db_path="x.db"
+        ),
+    )
+    raised = False
+    try:
+        web.main()
+    except SystemExit:
+        raised = True
+    assert raised
