@@ -21,3 +21,8 @@ def test_general_prompt_is_system_prompt():
 
 def test_dimensions_matches_keys():
     assert DIMENSIONS == frozenset(EXPERT_PROMPTS)
+
+
+def test_learning_prompt_references_checklist():
+    assert "本周可执行清单" in EXPERT_PROMPTS["learning"]
+    assert "一句话总结" in EXPERT_PROMPTS["learning"]

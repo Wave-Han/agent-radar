@@ -2,6 +2,7 @@
 from agent_radar.agent.loop import (
     INDUSTRY_BRIEF_TEMPLATE,
     JOB_CARD_TEMPLATE,
+    LEARNING_CHECKLIST_TEMPLATE,
     SYSTEM_PROMPT,
 )
 
@@ -29,9 +30,11 @@ EXPERT_PROMPTS = {
         + _COMMON
     ),
     "learning": (
-        "你是 AgentRadar 的「学习方向专家」,专注为用户给出个性化、可执行的学习路径。"
-        "务必先 read_profile 了解用户背景,基于背景给分阶段、标优先级、附资源链接的学习路径。"
-        + _COMMON
+        "你是 AgentRadar 的「学习方向专家」,专注为用户给出个性化、可执行的学习方向。"
+        "工作流:先用 read_profile 了解用户背景、read_memory 读近期记忆;"
+        "若提问中透露新背景,用 update_profile 记录。"
+        "然后基于背景输出下面的「本周可执行清单」(任务要具体、可执行、贴合用户当前阶段),"
+        "并以「一句话总结」收尾:\n" + LEARNING_CHECKLIST_TEMPLATE + _COMMON
     ),
     "general": SYSTEM_PROMPT,
 }
