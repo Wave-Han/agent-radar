@@ -27,6 +27,7 @@ h1 { font-size: 1.4rem; }
 .row { display: flex; gap: 0.5rem; }
 input { flex: 1; padding: 0.5rem; font-size: 1rem; }
 button { padding: 0.5rem 1rem; font-size: 1rem; cursor: pointer; }
+button:disabled { cursor: default; opacity: 0.5; }
 #brief { white-space: pre-wrap; border-top: 1px solid #ddd; margin-top: 1rem; padding-top: 1rem; }
 </style>
 </head>
@@ -48,30 +49,48 @@ function add(cls, text) {
   d.textContent = text;
   log.appendChild(d);
   log.scrollTop = log.scrollHeight;
+  return d;
 }
 async function send() {
   const text = msg.value.trim();
   if (!text) return;
   add("you", "你: " + text);
   msg.value = "";
-  const r = await fetch("/chat", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({message: text})});
-  const data = await r.json();
-  add("bot", "AgentRadar: " + data.content);
-  if (data.tools_used && data.tools_used.length) {
-    const t = document.createElement("div");
-    t.className = "tools";
-    t.textContent = "(使用工具: " + data.tools_used.join(", ") + ")";
-    log.appendChild(t);
-    log.scrollTop = log.scrollHeight;
+  const sendBtn = document.getElementById("send");
+  sendBtn.disabled = true;
+  const thinking = add("bot", "AgentRadar: 思考中...(Orchestrator 分类 + 专家调研,可能几十秒)");
+  try {
+    const r = await fetch("/chat", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({message: text})});
+    const data = await r.json();
+    thinking.textContent = "AgentRadar: " + data.content;
+    if (data.tools_used && data.tools_used.length) {
+      const t = document.createElement("div");
+      t.className = "tools";
+      t.textContent = "(使用工具: " + data.tools_used.join(", ") + ")";
+      log.appendChild(t);
+      log.scrollTop = log.scrollHeight;
+    }
+  } catch (e) {
+    thinking.textContent = "AgentRadar: 请求失败,请重试。(" + e + ")";
+  } finally {
+    sendBtn.disabled = false;
   }
 }
 document.getElementById("send").addEventListener("click", send);
 msg.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
 document.getElementById("brief-btn").addEventListener("click", async () => {
+  const btn = document.getElementById("brief-btn");
+  btn.disabled = true;
   document.getElementById("brief").textContent = "生成中(可能几十秒)...";
-  const r = await fetch("/brief", {method: "POST"});
-  const data = await r.json();
-  document.getElementById("brief").textContent = data.brief;
+  try {
+    const r = await fetch("/brief", {method: "POST"});
+    const data = await r.json();
+    document.getElementById("brief").textContent = data.brief;
+  } catch (e) {
+    document.getElementById("brief").textContent = "周报生成失败,请重试。(" + e + ")";
+  } finally {
+    btn.disabled = false;
+  }
 });
 </script>
 </body>
