@@ -101,3 +101,43 @@ class AgentLoop:
             content="(达到最大推理轮数,请缩小问题范围后重试。)",
             tools_used=tools_used,
         )
+
+    def run_stream(self, user_message: str, history: list[dict] | None = None):
+        """Streaming variant of run(): yields delta/tool/done/error events."""
+        messages: list[dict] = [{"role": "system", "content": self._system_prompt}]
+        messages.extend(history or [])
+        messages.append({"role": "user", "content": user_message})
+        tools_used: list[str] = []
+
+        for _ in range(self._max):
+            content_parts: list[str] = []
+            tool_calls = None
+            for event in self._client.stream(messages, self._registry.to_tools_param()):
+                if event["type"] == "delta":
+                    content_parts.append(event["content"])
+                    yield event
+                elif event["type"] == "tool_calls":
+                    tool_calls = event["tool_calls"]
+            assistant: dict = {"role": "assistant"}
+            if content_parts:
+                assistant["content"] = "".join(content_parts)
+            if tool_calls:
+                assistant["tool_calls"] = [
+                    {"id": tc["id"], "type": "function",
+                     "function": {"name": tc["name"],
+                                  "arguments": json.dumps(tc["arguments"], ensure_ascii=False)}}
+                    for tc in tool_calls
+                ]
+            messages.append(assistant)
+            if not tool_calls:
+                yield {"type": "done", "tools_used": tools_used}
+                return
+            for tc in tool_calls:
+                tools_used.append(tc["name"])
+                yield {"type": "tool", "name": tc["name"]}
+                result = self._registry.execute(tc["name"], tc["arguments"])
+                messages.append({
+                    "role": "tool", "tool_call_id": tc["id"], "content": result,
+                })
+
+        yield {"type": "error", "message": "达到最大推理轮数,请缩小问题范围后重试。"}
