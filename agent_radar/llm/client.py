@@ -72,6 +72,37 @@ class ZhipuChatClient:
             raw=resp,
         )
 
+    def stream(self, messages, tools, tool_choice="auto"):
+        """Yield delta events; assemble streamed tool_calls and emit at turn end."""
+        resp = self._client.chat.completions.create(
+            model=self._model,
+            messages=messages,
+            tools=self._build_tools(tools),
+            tool_choice=tool_choice,
+            stream=True,
+        )
+        acc: dict[int, dict] = {}
+        for chunk in resp:
+            if not getattr(chunk, "choices", None):
+                continue
+            delta = chunk.choices[0].delta
+            content = getattr(delta, "content", None)
+            if content:
+                yield {"type": "delta", "content": content}
+            for tc in getattr(delta, "tool_calls", None) or []:
+                slot = acc.setdefault(tc.index, {"id": "", "name": "", "arguments": ""})
+                if getattr(tc, "id", None):
+                    slot["id"] = tc.id
+                fn = getattr(tc, "function", None)
+                if fn is not None:
+                    if getattr(fn, "name", None):
+                        slot["name"] += fn.name
+                    if getattr(fn, "arguments", None):
+                        slot["arguments"] += fn.arguments
+        calls = _finalize_stream_tool_calls(acc)
+        if calls:
+            yield {"type": "tool_calls", "tool_calls": calls}
+
 
 def _parse_dict_tool_calls(tool_calls_list) -> list[ToolCall]:
     """Parse OpenAI/DeepSeek-style tool_calls (list of dicts) into ToolCall."""
@@ -83,6 +114,21 @@ def _parse_dict_tool_calls(tool_calls_list) -> list[ToolCall]:
         except (TypeError, ValueError):
             args = {}
         calls.append(ToolCall(id=tc.get("id", ""), name=fn.get("name", ""), arguments=args))
+    return calls
+
+
+def _finalize_stream_tool_calls(acc: dict) -> list[dict] | None:
+    """Turn an accumulated {index: {id,name,arguments}} map into ToolCall dicts."""
+    if not acc:
+        return None
+    calls = []
+    for idx in sorted(acc):
+        slot = acc[idx]
+        try:
+            args = json.loads(slot["arguments"]) if slot["arguments"] else {}
+        except (TypeError, ValueError):
+            args = {}
+        calls.append({"id": slot["id"], "name": slot["name"], "arguments": args})
     return calls
 
 

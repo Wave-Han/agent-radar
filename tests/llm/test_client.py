@@ -125,3 +125,64 @@ def test_resilient_on_switch_called_once():
     rc.chat([], [])
     rc.chat([], [])
     assert switched == [True]
+
+
+class _FnDelta:
+    def __init__(self, name=None, arguments=None):
+        self.name = name
+        self.arguments = arguments
+
+
+class _TCDelta:
+    def __init__(self, index, id=None, function=None):
+        self.index = index
+        self.id = id
+        self.function = function
+
+
+class _Delta:
+    def __init__(self, content=None, tool_calls=None):
+        self.content = content
+        self.tool_calls = tool_calls
+
+
+class _Chunk:
+    def __init__(self, delta):
+        self.choices = [type("C", (), {"delta": delta})()]
+
+
+def _zhipu_stream_client(chunks):
+    client = ZhipuChatClient.__new__(ZhipuChatClient)
+    client._client = MagicMock()
+    client._model = "glm-4"
+    client._enable_websearch = False
+    client._client.chat.completions.create.return_value = iter(chunks)
+    return client
+
+
+def test_zhipu_stream_emits_deltas_and_assembles_tool_calls():
+    chunks = [
+        _Chunk(_Delta(content="你")),
+        _Chunk(_Delta(content="好")),
+        _Chunk(_Delta(tool_calls=[_TCDelta(0, id="1",
+                     function=_FnDelta(name="github_stats", arguments='{"re'))])),
+        _Chunk(_Delta(tool_calls=[_TCDelta(0,
+                     function=_FnDelta(arguments='po": "x/y"}'))])),
+    ]
+    client = _zhipu_stream_client(chunks)
+    events = list(client.stream([{"role": "user", "content": "hi"}], []))
+    assert events[0] == {"type": "delta", "content": "你"}
+    assert events[1] == {"type": "delta", "content": "好"}
+    assert events[2] == {
+        "type": "tool_calls",
+        "tool_calls": [{"id": "1", "name": "github_stats",
+                        "arguments": {"repo": "x/y"}}],
+    }
+    kwargs = client._client.chat.completions.create.call_args.kwargs
+    assert kwargs.get("stream") is True
+
+
+def test_zhipu_stream_content_only_ends_without_tool_calls():
+    client = _zhipu_stream_client([_Chunk(_Delta(content="答案"))])
+    events = list(client.stream([{"role": "user", "content": "hi"}], []))
+    assert events == [{"type": "delta", "content": "答案"}]
