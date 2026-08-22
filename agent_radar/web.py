@@ -1,9 +1,10 @@
 """Web UI: FastAPI app + single-page HTML (chat + weekly brief)."""
+import json
+
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
-from agent_radar.agent.loop import Answer
 from agent_radar.config import load_config
 
 
@@ -43,6 +44,7 @@ button:disabled { cursor: default; opacity: 0.5; }
 <script>
 const log = document.getElementById("log");
 const msg = document.getElementById("msg");
+const DIM_NAMES = {trend: "技术趋势", jobs: "就业行情", industry: "行业动态", learning: "学习方向", general: "通用"};
 function add(cls, text) {
   const d = document.createElement("div");
   d.className = "msg " + cls;
@@ -58,20 +60,47 @@ async function send() {
   msg.value = "";
   const sendBtn = document.getElementById("send");
   sendBtn.disabled = true;
-  const thinking = add("bot", "AgentRadar: 思考中...(Orchestrator 分类 + 专家调研,可能几十秒)");
+  const thinking = add("bot", "AgentRadar: 思考中...");
   try {
     const r = await fetch("/chat", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({message: text})});
-    const data = await r.json();
-    thinking.textContent = "AgentRadar: " + data.content;
-    if (data.tools_used && data.tools_used.length) {
-      const t = document.createElement("div");
-      t.className = "tools";
-      t.textContent = "(使用工具: " + data.tools_used.join(", ") + ")";
-      log.appendChild(t);
-      log.scrollTop = log.scrollHeight;
+    if (!r.body || !r.body.getReader) {
+      const data = await r.json();
+      thinking.textContent = "AgentRadar: " + data.content;
+      return;
+    }
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    thinking.textContent = "AgentRadar: ";
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, {stream: true});
+      let sep;
+      while ((sep = buf.indexOf("\\n\\n")) >= 0) {
+        const block = buf.slice(0, sep);
+        buf = buf.slice(sep + 2);
+        for (const line of block.split("\\n")) {
+          if (!line.startsWith("data:")) continue;
+          const payload = line.slice(5).trim();
+          if (payload === "[DONE]") continue;
+          let ev;
+          try { ev = JSON.parse(payload); } catch { continue; }
+          if (ev.type === "route") {
+            thinking.textContent += "\\n[已路由:" + (DIM_NAMES[ev.dim] || ev.dim) + "]\\n";
+          } else if (ev.type === "delta") {
+            thinking.textContent += ev.content;
+          } else if (ev.type === "tool") {
+            thinking.textContent += "\\n[调用工具:" + ev.name + "]";
+          } else if (ev.type === "error") {
+            thinking.textContent += "\\n⚠️ " + ev.message;
+          }
+          log.scrollTop = log.scrollHeight;
+        }
+      }
     }
   } catch (e) {
-    thinking.textContent = "AgentRadar: 请求失败,请重试。(" + e + ")";
+    thinking.textContent += "\\n请求失败,请重试。(" + e + ")";
   } finally {
     sendBtn.disabled = false;
   }
@@ -108,8 +137,15 @@ def build_app(orchestrator, brief_fn):
 
     @app.post("/chat")
     def chat(chat_in: ChatIn):
-        ans: Answer = orchestrator.run(chat_in.message)
-        return {"content": ans.content, "tools_used": ans.tools_used}
+        def gen():
+            try:
+                for ev in orchestrator.run_stream(chat_in.message):
+                    yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
+            except Exception as e:  # noqa: BLE001 - surface as an SSE error event
+                yield f"data: {json.dumps({'type': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
+            yield "data: [DONE]\n\n"
+
+        return StreamingResponse(gen(), media_type="text/event-stream")
 
     @app.post("/brief")
     def brief():

@@ -23,12 +23,37 @@ def test_index_returns_html_with_title():
     assert "AgentRadar" in r.text
 
 
-def test_chat_returns_content_and_tools():
-    r = _client().post("/chat", json={"message": "hi"})
+class _StreamFakeOrch:
+    def run_stream(self, message, history=None):
+        yield {"type": "route", "dim": "jobs"}
+        yield {"type": "delta", "content": "就"}
+        yield {"type": "delta", "content": "业"}
+        yield {"type": "done", "tools_used": []}
+
+
+class _BrokenStreamOrch:
+    def run_stream(self, message, history=None):
+        yield {"type": "route", "dim": "jobs"}
+        raise RuntimeError("boom")
+
+
+def test_chat_streams_sse_events():
+    r = TestClient(build_app(_StreamFakeOrch(), _brief_fn)).post("/chat", json={"message": "hi"})
     assert r.status_code == 200
-    body = r.json()
-    assert body["content"] == "回:hi"
-    assert body["tools_used"] == ["github_stats"]
+    assert r.headers["content-type"].startswith("text/event-stream")
+    text = r.text
+    assert 'data: {"type": "route", "dim": "jobs"}' in text
+    assert 'data: {"type": "delta", "content": "就"}' in text
+    assert "data: [DONE]" in text
+    assert text.index('"route"') < text.index("[DONE]")
+
+
+def test_chat_stream_error_becomes_error_event():
+    r = TestClient(build_app(_BrokenStreamOrch(), _brief_fn)).post("/chat", json={"message": "hi"})
+    assert r.status_code == 200
+    assert '"type": "error"' in r.text
+    assert "boom" in r.text
+    assert "data: [DONE]" in r.text
 
 
 def test_brief_returns_brief():
