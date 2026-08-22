@@ -166,6 +166,56 @@ class DeepSeekChatClient:
             raw=data,
         )
 
+    def stream(self, messages, tools, tool_choice="auto"):
+        """Yield delta events parsed from DeepSeek SSE lines."""
+        resp = requests.post(
+            f"{self.BASE_URL}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {self._api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": self._model,
+                "messages": messages,
+                "tools": tools,
+                "tool_choice": tool_choice,
+                "stream": True,
+            },
+            stream=True,
+            timeout=60,
+        )
+        resp.raise_for_status()
+        acc: dict[int, dict] = {}
+        for line in resp.iter_lines(decode_unicode=True):
+            if not line or not line.startswith("data:"):
+                continue
+            data = line[len("data:"):].strip()
+            if data == "[DONE]":
+                break
+            try:
+                obj = json.loads(data)
+            except ValueError:
+                continue
+            choices = obj.get("choices") or []
+            if not choices:
+                continue
+            delta = choices[0].get("delta") or {}
+            if delta.get("content"):
+                yield {"type": "delta", "content": delta["content"]}
+            for tc in delta.get("tool_calls") or []:
+                idx = tc.get("index", 0)
+                slot = acc.setdefault(idx, {"id": "", "name": "", "arguments": ""})
+                if tc.get("id"):
+                    slot["id"] = tc["id"]
+                fn = tc.get("function") or {}
+                if fn.get("name"):
+                    slot["name"] += fn["name"]
+                if fn.get("arguments"):
+                    slot["arguments"] += fn["arguments"]
+        calls = _finalize_stream_tool_calls(acc)
+        if calls:
+            yield {"type": "tool_calls", "tool_calls": calls}
+
 
 class ResilientClient:
     """Wraps a primary ChatClient with an optional fallback. If the primary
@@ -193,3 +243,26 @@ class ResilientClient:
             if self._on_switch is not None:
                 self._on_switch()
             return self._fallback.chat(messages, tools, tool_choice)
+
+    def stream(self, messages, tools, tool_choice="auto"):
+        """Stream with the same session-wide fallback as chat()."""
+        if self._degraded:
+            if self._fallback is None:
+                raise RuntimeError("degraded but no fallback configured")
+            yield from self._fallback.stream(messages, tools, tool_choice)
+            return
+        primary = self._primary.stream(messages, tools, tool_choice)
+        try:
+            while True:
+                try:
+                    event = next(primary)
+                except StopIteration:
+                    return
+                yield event
+        except Exception:
+            if self._fallback is None:
+                raise
+            self._degraded = True
+            if self._on_switch is not None:
+                self._on_switch()
+            yield from self._fallback.stream(messages, tools, tool_choice)

@@ -186,3 +186,64 @@ def test_zhipu_stream_content_only_ends_without_tool_calls():
     client = _zhipu_stream_client([_Chunk(_Delta(content="答案"))])
     events = list(client.stream([{"role": "user", "content": "hi"}], []))
     assert events == [{"type": "delta", "content": "答案"}]
+
+
+def test_deepseek_stream_parses_sse_lines():
+    client = DeepSeekChatClient(api_key="k")
+    lines = [
+        'data: {"choices":[{"delta":{"content":"A"}}]}',
+        'data: {"choices":[{"delta":{"content":"B"}}]}',
+        ('data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"1",'
+         '"function":{"name":"github_stats","arguments":"{\\"repo\\": \\"x/y\\"}"}}]}}]}'),
+        'data: [DONE]',
+        '',
+    ]
+    fake = MagicMock()
+    fake.raise_for_status = MagicMock()
+    fake.iter_lines = MagicMock(return_value=iter(lines))
+    with patch("agent_radar.llm.client.requests.post", return_value=fake):
+        events = list(client.stream([{"role": "user", "content": "hi"}], []))
+    assert events[0] == {"type": "delta", "content": "A"}
+    assert events[1] == {"type": "delta", "content": "B"}
+    assert events[2]["type"] == "tool_calls"
+    assert events[2]["tool_calls"][0]["arguments"] == {"repo": "x/y"}
+
+
+class _PrimStreamFail:
+    def chat(self, m, t, tool_choice="auto"):
+        raise RuntimeError("glm down")
+
+    def stream(self, m, t, tool_choice="auto"):
+        yield {"type": "delta", "content": "partial"}
+        raise RuntimeError("glm stream died")
+
+
+class _FallStreamOk:
+    def __init__(self):
+        self.stream_calls = 0
+
+    def chat(self, m, t, tool_choice="auto"):
+        return ChatResponse(content="ok")
+
+    def stream(self, m, t, tool_choice="auto"):
+        self.stream_calls += 1
+        yield {"type": "delta", "content": "fall"}
+
+
+def test_resilient_stream_switches_mid_stream_and_stays():
+    fall = _FallStreamOk()
+    rc = ResilientClient(_PrimStreamFail(), fall)
+    events = list(rc.stream([], []))
+    assert events[-1] == {"type": "delta", "content": "fall"}
+    list(rc.stream([], []))
+    assert fall.stream_calls == 2
+
+
+def test_resilient_stream_reraises_when_no_fallback():
+    rc = ResilientClient(_PrimStreamFail(), None)
+    raised = False
+    try:
+        list(rc.stream([], []))
+    except RuntimeError:
+        raised = True
+    assert raised
