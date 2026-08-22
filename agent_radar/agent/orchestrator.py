@@ -40,3 +40,15 @@ class Orchestrator:
             system_prompt=EXPERT_PROMPTS[dim],
         )
         return expert.run(user_message, history=history)
+
+    def run_stream(self, user_message: str, history: list[dict] | None = None):
+        """Streaming variant of run(): route event, then the expert's events."""
+        dim = self.route(user_message)
+        yield {"type": "route", "dim": dim}
+        expert = AgentLoop(
+            self._client,
+            self._registry,
+            max_iterations=self._max,
+            system_prompt=EXPERT_PROMPTS[dim],
+        )
+        yield from expert.run_stream(user_message, history=history)

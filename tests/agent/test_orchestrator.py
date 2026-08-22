@@ -51,3 +51,22 @@ def test_run_routes_to_expert_and_returns_answer():
     assert ans.content == "就业答案"
     # the expert turn used the jobs expert prompt
     assert "就业" in client.expert_systems[0]
+
+
+class _StreamRouteClient:
+    """chat() = router label; stream() = expert events."""
+    def __init__(self, label="jobs"):
+        self._label = label
+
+    def chat(self, messages, tools, tool_choice="auto"):
+        return ChatResponse(content=self._label)
+
+    def stream(self, messages, tools, tool_choice="auto"):
+        yield {"type": "delta", "content": "就业答案"}
+
+
+def test_run_stream_emits_route_then_expert_events():
+    orch = Orchestrator(_StreamRouteClient("jobs"), _empty_registry())
+    events = list(orch.run_stream("AI agent 就业?"))
+    assert events[0] == {"type": "route", "dim": "jobs"}
+    assert events[1] == {"type": "delta", "content": "就业答案"}
