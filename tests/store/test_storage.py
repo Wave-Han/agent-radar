@@ -37,3 +37,16 @@ def test_init_db_migrates_legacy_memory_table(tmp_db):
     )
     tmp_db.commit()
     assert tmp_db.execute("SELECT COUNT(*) FROM memory").fetchone()[0] == 1
+
+
+def test_search_memory_semantic_topk_skips_unvectorized(tmp_db):
+    from agent_radar.store.memory import search_memory
+    init_db(tmp_db)
+    append_memory(tmp_db, "assistant", "薪资相关", embedding=[1.0, 0.0])
+    append_memory(tmp_db, "assistant", "框架相关", embedding=[0.0, 1.0])
+    append_memory(tmp_db, "assistant", "无向量旧数据")
+    hits = search_memory(tmp_db, [0.9, 0.1], n=2)
+    assert [h["content"] for h in hits] == ["薪资相关", "框架相关"]
+    assert hits[0]["score"] > hits[1]["score"]
+    only = search_memory(tmp_db, [1.0, 0.0], n=1)
+    assert len(only) == 1 and only[0]["content"] == "薪资相关"
