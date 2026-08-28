@@ -247,3 +247,32 @@ def test_resilient_stream_reraises_when_no_fallback():
     except RuntimeError:
         raised = True
     assert raised
+
+
+def test_cosine_similarity_same_direction():
+    from agent_radar.llm.client import cosine_similarity
+    assert abs(cosine_similarity([1.0, 0.0], [2.0, 0.0]) - 1.0) < 1e-9
+
+
+def test_cosine_similarity_orthogonal():
+    from agent_radar.llm.client import cosine_similarity
+    assert abs(cosine_similarity([1.0, 0.0], [0.0, 3.0])) < 1e-9
+
+
+def test_cosine_similarity_zero_vector_returns_zero():
+    from agent_radar.llm.client import cosine_similarity
+    assert cosine_similarity([0.0, 0.0], [1.0, 1.0]) == 0.0
+
+
+def test_zhipu_embedding_client_embed():
+    from agent_radar.llm.client import ZhipuEmbeddingClient
+    client = ZhipuEmbeddingClient.__new__(ZhipuEmbeddingClient)
+    client._client = MagicMock()
+    client._model = "embedding-2"
+    client._client.embeddings.create.return_value = MagicMock(
+        data=[MagicMock(embedding=[0.1, 0.2])]
+    )
+    vec = client.embed("你好")
+    assert vec == [0.1, 0.2]
+    kwargs = client._client.embeddings.create.call_args.kwargs
+    assert kwargs["input"] == "你好"

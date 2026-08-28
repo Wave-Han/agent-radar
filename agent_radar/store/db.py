@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS memory (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     role TEXT NOT NULL,
     content TEXT NOT NULL,
-    ts TEXT NOT NULL
+    ts TEXT NOT NULL,
+    embedding TEXT
 );
 """
 
@@ -23,4 +24,9 @@ def get_connection(db_path: str) -> sqlite3.Connection:
 
 def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(_SCHEMA)
+    # Migrate legacy databases that predate the embedding column.
+    try:
+        conn.execute("ALTER TABLE memory ADD COLUMN embedding TEXT")
+    except sqlite3.OperationalError:
+        pass  # column already exists
     conn.commit()

@@ -266,3 +266,26 @@ class ResilientClient:
             if self._on_switch is not None:
                 self._on_switch()
             yield from self._fallback.stream(messages, tools, tool_choice)
+
+
+def cosine_similarity(a: list[float], b: list[float]) -> float:
+    """Cosine similarity between two equal-length vectors (pure Python)."""
+    dot = sum(x * y for x, y in zip(a, b))
+    norm_a = sum(x * x for x in a) ** 0.5
+    norm_b = sum(y * y for y in b) ** 0.5
+    if not norm_a or not norm_b:
+        return 0.0
+    return dot / (norm_a * norm_b)
+
+
+class ZhipuEmbeddingClient:
+    """Zhipu embedding client (reuses ZHIPU_API_KEY)."""
+
+    def __init__(self, api_key: str, model: str = "embedding-2"):
+        from zhipuai import ZhipuAI  # lazy import so tests can stub it
+        self._client = ZhipuAI(api_key=api_key)
+        self._model = model
+
+    def embed(self, text: str) -> list[float]:
+        resp = self._client.embeddings.create(model=self._model, input=text)
+        return list(resp.data[0].embedding)
