@@ -6,18 +6,23 @@ from agent_radar.agent.tools import memory as memory_tool
 from agent_radar.agent.tools import profile as profile_tool
 from agent_radar.config import Config, load_config
 from agent_radar.data.github_client import GitHubClient
-from agent_radar.llm.client import DeepSeekChatClient, ResilientClient, ZhipuChatClient
+from agent_radar.llm.client import (
+    DeepSeekChatClient,
+    ResilientClient,
+    ZhipuChatClient,
+    ZhipuEmbeddingClient,
+)
 from agent_radar.store.db import get_connection, init_db
 from agent_radar.store.profile import load_profile, patch_profile
 
 
-def build_registry(conn, github: GitHubClient) -> ToolRegistry:
+def build_registry(conn, github: GitHubClient, embedder=None) -> ToolRegistry:
     reg = ToolRegistry()
     reg.register(gh_tool.SPEC, gh_tool.make_tool(github))
     reg.register(profile_tool.READ_SPEC, profile_tool.make_read_tool(conn))
     reg.register(profile_tool.UPDATE_SPEC, profile_tool.make_update_tool(conn))
-    reg.register(memory_tool.READ_SPEC, memory_tool.make_read_tool(conn))
-    reg.register(memory_tool.WRITE_SPEC, memory_tool.make_write_tool(conn))
+    reg.register(memory_tool.READ_SPEC, memory_tool.make_read_tool(conn, embedder))
+    reg.register(memory_tool.WRITE_SPEC, memory_tool.make_write_tool(conn, embedder))
     return reg
 
 
@@ -78,7 +83,10 @@ def main(config: Config | None = None) -> None:
     onboard_profile(conn)
 
     client = build_client(config)
-    registry = build_registry(conn, GitHubClient(token=config.github_token))
+    embedder = ZhipuEmbeddingClient(config.zhipu_api_key)
+    registry = build_registry(
+        conn, GitHubClient(token=config.github_token), embedder
+    )
     loop = build_orchestrator(client, registry, max_iterations=config.max_iterations)
 
     print("AgentRadar 就绪。输入问题,/profile 查看画像,Ctrl+C 退出。\n")
