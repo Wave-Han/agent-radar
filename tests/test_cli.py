@@ -12,7 +12,7 @@ def test_build_registry_registers_all_tools(tmp_db):
     reg = cli.build_registry(tmp_db, GitHubClient())
     assert {
         "github_stats", "read_profile", "update_profile",
-        "read_memory", "write_memory",
+        "read_memory", "write_memory", "search_docs",
     } <= set(reg.names())
 
 

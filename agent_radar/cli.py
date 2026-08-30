@@ -2,6 +2,7 @@
 from agent_radar.agent.orchestrator import Orchestrator
 from agent_radar.agent.registry import ToolRegistry
 from agent_radar.agent.tools import github_stats as gh_tool
+from agent_radar.agent.tools import kb as kb_tool
 from agent_radar.agent.tools import memory as memory_tool
 from agent_radar.agent.tools import profile as profile_tool
 from agent_radar.config import Config, load_config
@@ -23,6 +24,7 @@ def build_registry(conn, github: GitHubClient, embedder=None) -> ToolRegistry:
     reg.register(profile_tool.UPDATE_SPEC, profile_tool.make_update_tool(conn))
     reg.register(memory_tool.READ_SPEC, memory_tool.make_read_tool(conn, embedder))
     reg.register(memory_tool.WRITE_SPEC, memory_tool.make_write_tool(conn, embedder))
+    reg.register(kb_tool.SEARCH_SPEC, kb_tool.make_tool(conn, embedder))
     return reg
 
 

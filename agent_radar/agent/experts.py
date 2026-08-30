@@ -9,6 +9,7 @@ from agent_radar.agent.loop import (
 _COMMON = (
     "\n\n工作方式:用内置 web_search 实时调研;回答前用 read_profile 了解用户背景"
     "(若提问中透露新背景,用 update_profile 记录);可用 github_stats 核实仓库热度;"
+    "涉及私有文档时可用 search_docs 检索知识库;"
     "涉及数据附来源链接并说明时效;用简体中文,先给结论再展开。"
 )
 
