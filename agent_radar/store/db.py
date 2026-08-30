@@ -13,6 +13,12 @@ CREATE TABLE IF NOT EXISTS memory (
     ts TEXT NOT NULL,
     embedding TEXT
 );
+CREATE TABLE IF NOT EXISTS kb_chunks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    doc TEXT NOT NULL,
+    content TEXT NOT NULL,
+    embedding TEXT
+);
 """
 
 
