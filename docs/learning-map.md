@@ -19,6 +19,7 @@
 | 11 | RAG① | 语义记忆(embedding + 余弦) | 向量检索、ALTER 迁移、全链路降级 | 85 |
 | 12 | RAG② | 文档知识库(chunking + search_docs) | **chunking(标题=语义边界)**、全量重建 | 100 |
 | + | 概念课 | 安全与成本 | prompt injection(直接/间接)、token 成本结构 | — |
+| 13 | 加固 | 注入防护声明 + tokens 可见化 | 声明隔离、usage 链路、防呆设计 | 104 |
 
 ## 二、知识体系(五大板块)
 
@@ -72,6 +73,7 @@
 3. **增量式重构**:流式是"同步链路一行不动,新增并行链路"——旧测试零破坏
 4. **系统化调试**:先看证据(uvicorn 日志的 POST /chat 状态),再定位,不猜
 5. **Bash 链式命令**:pytest 直接把关退出码,`| tail` 会吞退出码导致失败也 commit
+6. **防呆设计(poka-yoke)**:同一错误第二次出现就改 API(默认值/收紧类型),不靠调用方小心
 
 ## 五、踩坑清单(真实教训)
 
@@ -83,6 +85,7 @@
 | 测试 fake 依赖被测数据 | fake 要自包含(mapping.get),别去 EVAL_CASES 里查答案 |
 | plan 自相矛盾(chunking merge vs apart) | 设计文档也会错,测试是最后一道网 |
 | Web UI「没反应」 | 不是卡死是慢+无反馈;感知性能第一定律 |
+| `ChatResponse` 漏 content ×2 | 同一错误两次 = API 设计缺陷;恒 None 的必填字段给默认值 |
 
 ## 六、下一步学习路线(建议)
 
