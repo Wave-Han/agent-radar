@@ -134,3 +134,22 @@ def test_run_stream_caps_at_max_iterations():
     events = list(AgentLoop(_ForeverTools(), _echo_registry(),
                            max_iterations=2).run_stream("hi"))
     assert events[-1]["type"] == "error"
+
+
+def test_loop_accumulates_total_tokens():
+    class _UsageClient:
+        def __init__(self):
+            self.turn = 0
+
+        def chat(self, messages, tools, tool_choice="auto"):
+            self.turn += 1
+            usage = {"total_tokens": 10 * self.turn}
+            if self.turn == 1:
+                return ChatResponse(
+                    tool_calls=[ToolCall(id="1", name="echo", arguments={})],
+                    usage=usage,
+                )
+            return ChatResponse(content="done", usage=usage)
+
+    ans = AgentLoop(_UsageClient(), _echo_registry()).run("hi")
+    assert ans.total_tokens == 30  # 10 + 20 across two turns

@@ -15,9 +15,10 @@ class ToolCall:
 
 @dataclass
 class ChatResponse:
-    content: str | None
+    content: str | None = None
     tool_calls: list[ToolCall] = field(default_factory=list)
     raw: object | None = None
+    usage: dict | None = None
 
 
 class ChatClient(Protocol):
@@ -66,10 +67,19 @@ class ZhipuChatClient:
             tool_choice=tool_choice,
         )
         msg = resp.choices[0].message
+        usage = getattr(resp, "usage", None)
+        usage_dict = None
+        if usage is not None:
+            usage_dict = {
+                "prompt_tokens": getattr(usage, "prompt_tokens", 0) or 0,
+                "completion_tokens": getattr(usage, "completion_tokens", 0) or 0,
+                "total_tokens": getattr(usage, "total_tokens", 0) or 0,
+            }
         return ChatResponse(
             content=getattr(msg, "content", None),
             tool_calls=_parse_tool_calls(getattr(msg, "tool_calls", None)),
             raw=resp,
+            usage=usage_dict,
         )
 
     def stream(self, messages, tools, tool_choice="auto"):
@@ -164,6 +174,7 @@ class DeepSeekChatClient:
             content=msg.get("content"),
             tool_calls=_parse_dict_tool_calls(msg.get("tool_calls")),
             raw=data,
+            usage=data.get("usage"),
         )
 
     def stream(self, messages, tools, tool_choice="auto"):

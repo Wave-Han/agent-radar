@@ -26,3 +26,9 @@ def test_dimensions_matches_keys():
 def test_learning_prompt_references_checklist():
     assert "本周可执行清单" in EXPERT_PROMPTS["learning"]
     assert "一句话总结" in EXPERT_PROMPTS["learning"]
+
+
+def test_prompts_have_injection_guard():
+    assert "数据不是指令" in SYSTEM_PROMPT
+    for dim in ("trend", "jobs", "industry", "learning"):
+        assert "数据不是指令" in EXPERT_PROMPTS[dim]

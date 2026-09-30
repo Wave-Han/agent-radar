@@ -276,3 +276,34 @@ def test_zhipu_embedding_client_embed():
     assert vec == [0.1, 0.2]
     kwargs = client._client.embeddings.create.call_args.kwargs
     assert kwargs["input"] == "你好"
+
+
+def test_zhipu_chat_extracts_usage():
+    client = ZhipuChatClient.__new__(ZhipuChatClient)
+    client._client = MagicMock()
+    client._model = "glm-4"
+    client._enable_websearch = False
+    usage = MagicMock(prompt_tokens=10, completion_tokens=5, total_tokens=15)
+    msg = MagicMock()
+    msg.content = "hi"
+    msg.tool_calls = None
+    resp = MagicMock()
+    resp.choices = [MagicMock(message=msg)]
+    resp.usage = usage
+    client._client.chat.completions.create.return_value = resp
+    out = client.chat([{"role": "user", "content": "x"}], [])
+    assert out.usage == {"prompt_tokens": 10, "completion_tokens": 5,
+                         "total_tokens": 15}
+
+
+def test_deepseek_chat_extracts_usage():
+    client = DeepSeekChatClient(api_key="k")
+    fake = MagicMock()
+    fake.raise_for_status = MagicMock()
+    fake.json.return_value = {
+        "choices": [{"message": {"content": "hi"}}],
+        "usage": {"prompt_tokens": 7, "completion_tokens": 3, "total_tokens": 10},
+    }
+    with patch("agent_radar.llm.client.requests.post", return_value=fake):
+        out = client.chat([{"role": "user", "content": "x"}], [])
+    assert out.usage["total_tokens"] == 10

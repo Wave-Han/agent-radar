@@ -109,6 +109,8 @@ def main(config: Config | None = None) -> None:
         print(f"\nAgentRadar: {ans.content}")
         if ans.tools_used:
             print(f"(使用工具: {', '.join(ans.tools_used)})")
+        if ans.total_tokens:
+            print(f"(tokens: {ans.total_tokens})")
         print()
 
 
