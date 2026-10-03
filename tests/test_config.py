@@ -1,4 +1,27 @@
-from agent_radar.config import load_config
+from agent_radar.config import ensure_utf8_stdout, load_config
+
+
+def test_ensure_utf8_stdout_fixes_gbk_console():
+    import io
+    import sys
+
+    # Simulate a GBK stdout that cannot encode the warning emoji.
+    fake = io.TextIOWrapper(io.BytesIO(), encoding="gbk")
+    original = sys.stdout
+    sys.stdout = fake
+    try:
+        raised = False
+        try:
+            sys.stdout.write("switch ⚠️\n")
+        except UnicodeEncodeError:
+            raised = True
+        assert raised, "GBK stream should reject the emoji before the fix"
+
+        ensure_utf8_stdout()
+        sys.stdout.write("switch ⚠️ ok\n")  # must not raise now
+    finally:
+        sys.stdout = original
+        fake.close()
 
 
 def test_load_config_reads_env(monkeypatch):

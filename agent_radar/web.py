@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
-from agent_radar.config import load_config
+from agent_radar.config import ensure_utf8_stdout, load_config
 
 
 class ChatIn(BaseModel):
@@ -155,6 +155,7 @@ def build_app(orchestrator, brief_fn):
 
 
 def main():
+    ensure_utf8_stdout()
     import uvicorn
     from agent_radar.agent.orchestrator import Orchestrator
     from agent_radar.brief import generate_brief

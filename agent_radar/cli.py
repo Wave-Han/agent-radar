@@ -5,7 +5,7 @@ from agent_radar.agent.tools import github_stats as gh_tool
 from agent_radar.agent.tools import kb as kb_tool
 from agent_radar.agent.tools import memory as memory_tool
 from agent_radar.agent.tools import profile as profile_tool
-from agent_radar.config import Config, load_config
+from agent_radar.config import Config, ensure_utf8_stdout, load_config
 from agent_radar.data.github_client import GitHubClient
 from agent_radar.llm.client import (
     DeepSeekChatClient,
@@ -76,6 +76,7 @@ def run_turn(loop, user: str):
 
 
 def main(config: Config | None = None) -> None:
+    ensure_utf8_stdout()
     config = config or load_config()
     if not config.zhipu_api_key:
         raise SystemExit("缺少 ZHIPU_API_KEY,请在 .env 中配置(参考 .env.example)。")

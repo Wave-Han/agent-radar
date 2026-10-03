@@ -68,6 +68,8 @@ def print_report(summary: dict) -> None:
 
 
 def main() -> None:
+    from agent_radar.config import ensure_utf8_stdout
+    ensure_utf8_stdout()
     from agent_radar.agent.orchestrator import Orchestrator
     from agent_radar.agent.registry import ToolRegistry
     from agent_radar.cli import build_client

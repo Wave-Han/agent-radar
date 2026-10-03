@@ -1,7 +1,7 @@
 """Generate a trend+jobs+industry brief and (optionally) email it."""
 from agent_radar.agent.experts import EXPERT_PROMPTS
 from agent_radar.agent.loop import AgentLoop, Answer
-from agent_radar.config import Config, load_config
+from agent_radar.config import Config, ensure_utf8_stdout, load_config
 from agent_radar.notify import send_email
 
 REPORT_DIMS = [("trend", "技术趋势"), ("jobs", "就业行情"), ("industry", "行业动态")]
@@ -38,6 +38,7 @@ def _is_smtp_configured(config: Config) -> bool:
 
 
 def main(config: Config | None = None) -> None:
+    ensure_utf8_stdout()
     # Lazy imports to keep `brief` importable without pulling the full CLI graph.
     from agent_radar.cli import build_client, build_registry
     from agent_radar.data.github_client import GitHubClient

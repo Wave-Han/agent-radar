@@ -1,11 +1,12 @@
 """Knowledge-base ingestion entrypoint: chunk + embed docs_kb/*.md into SQLite."""
 import os
 
-from agent_radar.config import load_config
+from agent_radar.config import ensure_utf8_stdout, load_config
 from agent_radar.store.db import get_connection, init_db
 
 
 def main() -> None:
+    ensure_utf8_stdout()
     from agent_radar.llm.client import ZhipuEmbeddingClient
     from agent_radar.store.kb import ingest_kb
 

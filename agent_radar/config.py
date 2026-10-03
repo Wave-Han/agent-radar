@@ -1,8 +1,15 @@
 """Configuration loaded from environment / .env."""
 import os
+import sys
 from dataclasses import dataclass
 
 from dotenv import load_dotenv
+
+
+def ensure_utf8_stdout() -> None:
+    """Reconfigure stdout to UTF-8 so emoji/unicode prints don't crash on GBK consoles (Windows)."""
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 
 @dataclass
