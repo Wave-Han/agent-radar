@@ -61,9 +61,10 @@ def build_client(config: Config):
     return primary
 
 
-def build_orchestrator(client, registry, max_iterations: int = 8):
+def build_orchestrator(client, registry, max_iterations: int = 8, route_client=None):
     """Build the multi-agent Orchestrator (routes to dimension experts)."""
-    return Orchestrator(client, registry, max_iterations=max_iterations)
+    return Orchestrator(client, registry, max_iterations=max_iterations,
+                        route_client=route_client)
 
 
 def run_turn(loop, user: str):
@@ -90,7 +91,11 @@ def main(config: Config | None = None) -> None:
     registry = build_registry(
         conn, GitHubClient(token=config.github_token), embedder
     )
-    loop = build_orchestrator(client, registry, max_iterations=config.max_iterations)
+    route_client = None
+    if config.route_model and config.route_model != config.model:
+        route_client = ZhipuChatClient(config.zhipu_api_key, model=config.route_model)
+    loop = build_orchestrator(client, registry, max_iterations=config.max_iterations,
+                              route_client=route_client)
 
     print("AgentRadar 就绪。输入问题,/profile 查看画像,Ctrl+C 退出。\n")
     while True:

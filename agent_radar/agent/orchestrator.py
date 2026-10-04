@@ -14,22 +14,27 @@ _ROUTE_PROMPT = (
 class Orchestrator:
     """Routes each turn to a dimension expert (an AgentLoop with a focused prompt)."""
 
-    def __init__(self, client: ChatClient, registry, max_iterations: int = 8):
+    def __init__(self, client: ChatClient, registry, max_iterations: int = 8,
+                 route_client: ChatClient | None = None):
         self._client = client
         self._registry = registry
         self._max = max_iterations
+        self._route_client = route_client or client
 
     def route(self, user_message: str) -> str:
-        resp = self._client.chat(
-            messages=[
-                {"role": "system", "content": "你是一个分类器,只输出维度标签,不要搜索。"},
-                {"role": "user", "content": _ROUTE_PROMPT + user_message},
-            ],
-            tools=[],
-        )
-        text = (resp.content or "").strip().lower()
-        first = text.split()[0] if text else ""
-        return first if first in DIMENSIONS else "general"
+        try:
+            resp = self._route_client.chat(
+                messages=[
+                    {"role": "system", "content": "你是一个分类器,只输出维度标签,不要搜索。"},
+                    {"role": "user", "content": _ROUTE_PROMPT + user_message},
+                ],
+                tools=[],
+            )
+            text = (resp.content or "").strip().lower()
+            first = text.split()[0] if text else ""
+            return first if first in DIMENSIONS else "general"
+        except Exception:  # noqa: BLE001 - routing failure degrades to general
+            return "general"
 
     def run(self, user_message: str, history: list[dict] | None = None) -> Answer:
         dim = self.route(user_message)

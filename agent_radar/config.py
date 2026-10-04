@@ -21,6 +21,7 @@ class Config:
     max_iterations: int = 8
     deepseek_api_key: str | None = None
     deepseek_model: str = "deepseek-chat"
+    route_model: str = ""  # empty = use same as model (no tiering)
     smtp_host: str | None = None
     smtp_port: int = 0
     smtp_user: str | None = None
@@ -39,6 +40,7 @@ def load_config(env_file: str = ".env") -> Config:
         max_iterations=int(os.environ.get("AGENT_RADAR_MAX_ITERATIONS", "8")),
         deepseek_api_key=os.environ.get("DEEPSEEK_API_KEY") or None,
         deepseek_model=os.environ.get("AGENT_RADAR_DEEPSEEK_MODEL", "deepseek-chat"),
+        route_model=os.environ.get("AGENT_RADAR_ROUTE_MODEL", ""),
         smtp_host=os.environ.get("SMTP_HOST") or None,
         smtp_port=int(os.environ.get("SMTP_PORT", "0") or "0"),
         smtp_user=os.environ.get("SMTP_USER") or None,

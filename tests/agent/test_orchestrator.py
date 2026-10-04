@@ -70,3 +70,43 @@ def test_run_stream_emits_route_then_expert_events():
     events = list(orch.run_stream("AI agent 就业?"))
     assert events[0] == {"type": "route", "dim": "jobs"}
     assert events[1] == {"type": "delta", "content": "就业答案"}
+
+
+class _CheapRouteClient:
+    """Simulates a separate cheap route client."""
+    def __init__(self, label="trend"):
+        self._label = label
+        self.calls = 0
+
+    def chat(self, messages, tools, tool_choice="auto"):
+        self.calls += 1
+        return ChatResponse(content=self._label)
+
+
+class _ExpensiveClient:
+    """The main client; should NOT be called for routing when route_client exists."""
+    def __init__(self):
+        self.calls = 0
+
+    def chat(self, messages, tools, tool_choice="auto"):
+        self.calls += 1
+        return ChatResponse(content="jobs")
+
+
+def test_route_uses_route_client_when_provided():
+    route_client = _CheapRouteClient("trend")
+    expensive = _ExpensiveClient()
+    orch = Orchestrator(expensive, _empty_registry(), route_client=route_client)
+    assert orch.route("whatever") == "trend"
+    assert route_client.calls == 1
+    assert expensive.calls == 0  # routing did not touch the expensive client
+
+
+def test_route_falls_back_to_general_on_route_client_failure():
+    class _BrokenRoute:
+        def chat(self, messages, tools, tool_choice="auto"):
+            raise RuntimeError("route model down")
+
+    orch = Orchestrator(_ExpensiveClient(), _empty_registry(),
+                        route_client=_BrokenRoute())
+    assert orch.route("anything") == "general"

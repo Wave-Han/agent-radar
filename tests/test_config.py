@@ -71,3 +71,12 @@ def test_load_config_smtp_defaults_none(monkeypatch):
     assert cfg.smtp_host is None
     assert cfg.smtp_port == 0
     assert cfg.email_to is None
+
+
+def test_load_config_route_model(monkeypatch):
+    monkeypatch.setenv("AGENT_RADAR_ROUTE_MODEL", "glm-4-flash")
+    cfg = load_config(env_file="/does/not/exist")
+    assert cfg.route_model == "glm-4-flash"
+    monkeypatch.delenv("AGENT_RADAR_ROUTE_MODEL", raising=False)
+    cfg = load_config(env_file="/does/not/exist")
+    assert cfg.route_model == ""
