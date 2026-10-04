@@ -20,6 +20,7 @@
 | 12 | RAG② | 文档知识库(chunking + search_docs) | **chunking(标题=语义边界)**、全量重建 | 100 |
 | + | 概念课 | 安全与成本 | prompt injection(直接/间接)、token 成本结构 | — |
 | 13 | 加固 | 注入防护声明 + tokens 可见化 | 声明隔离、usage 链路、防呆设计 | 104 |
+| 14 | EDD 收官 | eval 实跑 → GBK 崩溃修复 → 100% | Windows GBK 坑、fallback 真实验证、EDD 完整闭环 | 105 |
 
 ## 二、知识体系(五大板块)
 
@@ -86,6 +87,7 @@
 | plan 自相矛盾(chunking merge vs apart) | 设计文档也会错,测试是最后一道网 |
 | Web UI「没反应」 | 不是卡死是慢+无反馈;感知性能第一定律 |
 | `ChatResponse` 漏 content ×2 | 同一错误两次 = API 设计缺陷;恒 None 的必填字段给默认值 |
+| Windows GBK 控制台 UnicodeEncodeError | 入口统一 `sys.stdout.reconfigure(encoding="utf-8")`;emoji 在 GBK 里不存在 |
 
 ## 六、下一步学习路线(建议)
 
