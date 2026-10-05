@@ -10,6 +10,21 @@ _ROUTE_PROMPT = (
     "用户问题:"
 )
 
+SYNTHESIZE_PROMPT = """你是综合分析专家。以下是多个维度专家对同一问题的独立分析结果。
+请综合它们的观点,给出一份完整、不重复的回答。
+
+原始问题: {question}
+
+各专家分析:
+{expert_outputs}
+
+要求:
+- 整合不同维度的观点,不要逐个罗列专家名字
+- 去重:相同的信息只出现一次
+- 如果各专家有不同侧重点,自然融合而非拼接
+- 保持原问题的格式规范(如涉及就业/行业,保持对应模板)
+- 用简体中文,先给结论再展开。"""
+
 
 class Orchestrator:
     """Routes each turn to a dimension expert (an AgentLoop with a focused prompt)."""
@@ -57,3 +72,39 @@ class Orchestrator:
             system_prompt=EXPERT_PROMPTS[dim],
         )
         yield from expert.run_stream(user_message, history=history)
+
+    def run_parallel(self, question: str, dims: list[str],
+                     history: list[dict] | None = None) -> Answer:
+        """Run multiple experts concurrently, then synthesize into one answer."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        def run_expert(dim: str) -> dict:
+            expert = AgentLoop(
+                self._client, self._registry,
+                max_iterations=self._max,
+                system_prompt=EXPERT_PROMPTS[dim],
+            )
+            return {"dim": dim, "answer": expert.run(question, history=history)}
+
+        with ThreadPoolExecutor(max_workers=len(dims)) as executor:
+            results = list(executor.map(run_expert, dims))
+
+        synthesized = self._synthesize(question, results)
+        all_tools = [t for r in results for t in r["answer"].tools_used]
+        all_tokens = sum(r["answer"].total_tokens for r in results)
+        return Answer(content=synthesized, tools_used=all_tools,
+                      total_tokens=all_tokens)
+
+    def _synthesize(self, question: str, results: list[dict]) -> str:
+        """Combine multiple expert answers into one coherent response."""
+        outputs = "\n\n".join(
+            f"【{r['dim']}】\n{r['answer'].content}" for r in results
+        )
+        prompt = SYNTHESIZE_PROMPT.format(
+            question=question, expert_outputs=outputs
+        )
+        resp = self._client.chat(
+            messages=[{"role": "user", "content": prompt}],
+            tools=[],
+        )
+        return resp.content or ""

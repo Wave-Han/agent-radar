@@ -110,3 +110,70 @@ def test_route_falls_back_to_general_on_route_client_failure():
     orch = Orchestrator(_ExpensiveClient(), _empty_registry(),
                         route_client=_BrokenRoute())
     assert orch.route("anything") == "general"
+
+
+# ── Parallel expert tests ──────────────────────────────────────────
+
+import threading
+
+
+class _ParallelMockClient:
+    """Distinguishes expert calls (system message) from synthesis calls (user-only)."""
+    def __init__(self):
+        self._lock = threading.Lock()
+        self.expert_count = 0
+        self.synthesis_count = 0
+
+    def chat(self, messages, tools, tool_choice="auto"):
+        if messages and messages[0].get("role") == "user":
+            # Synthesis call has no system message
+            self.synthesis_count += 1
+            return ChatResponse(content="synthesized-result")
+        # Expert call has a system message
+        with self._lock:
+            self.expert_count += 1
+        return ChatResponse(content="expert-perspective")
+
+
+def test_run_parallel_runs_experts_and_synthesizes():
+    client = _ParallelMockClient()
+    orch = Orchestrator(client, _empty_registry())
+    ans = orch.run_parallel("AI agent 全景分析", ["trend", "jobs", "industry"])
+    assert ans.content == "synthesized-result"
+    assert client.expert_count == 3
+    assert client.synthesis_count == 1
+
+
+def test_run_parallel_aggregates_tokens():
+    class _TokenClient:
+        def __init__(self):
+            self._lock = threading.Lock()
+
+        def chat(self, messages, tools, tool_choice="auto"):
+            if messages and messages[0].get("role") == "user":
+                return ChatResponse(content="combined")
+            return ChatResponse(content="expert", usage={"total_tokens": 100})
+
+    client = _TokenClient()
+    orch = Orchestrator(client, _empty_registry())
+    ans = orch.run_parallel("test", ["trend", "jobs", "industry"])
+    assert ans.total_tokens == 300  # 3 experts × 100 tokens each
+
+
+def test_synthesize_prompt_contains_expert_outputs():
+    captured = []
+
+    class _CaptureClient:
+        def chat(self, messages, tools, tool_choice="auto"):
+            if messages and messages[0].get("role") == "user":
+                captured.append(messages[0]["content"])
+                return ChatResponse(content="ok")
+            return ChatResponse(content="expert-answer")
+
+    orch = Orchestrator(_CaptureClient(), _empty_registry())
+    orch.run_parallel("test question", ["trend", "jobs"])
+    assert len(captured) == 1
+    assert "trend" in captured[0]
+    assert "jobs" in captured[0]
+    assert "expert-answer" in captured[0]
+    assert "test question" in captured[0]

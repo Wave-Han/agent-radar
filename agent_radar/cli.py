@@ -97,7 +97,7 @@ def main(config: Config | None = None) -> None:
     loop = build_orchestrator(client, registry, max_iterations=config.max_iterations,
                               route_client=route_client)
 
-    print("AgentRadar 就绪。输入问题,/profile 查看画像,Ctrl+C 退出。\n")
+    print("AgentRadar 就绪。/multi 并行分析,/profile 查看画像,Ctrl+C 退出。\n")
     while True:
         try:
             user = input("你: ").strip()
@@ -108,6 +108,25 @@ def main(config: Config | None = None) -> None:
             continue
         if user == "/profile":
             print(load_profile(conn))
+            continue
+        if user.startswith("/multi "):
+            question = user[7:].strip()
+            if not question:
+                print("用法: /multi 问题内容(并行调研趋势+就业+行业)")
+                continue
+            print("[并行] 启动 3 个专家(趋势/就业/行业),可能需要几分钟...\n")
+            try:
+                ans = loop.run_parallel(
+                    question, ["trend", "jobs", "industry"]
+                )
+                print(f"\nAgentRadar: {ans.content}")
+                if ans.tools_used:
+                    print(f"(使用工具: {', '.join(ans.tools_used)})")
+                if ans.total_tokens:
+                    print(f"(tokens: {ans.total_tokens})")
+            except Exception as e:  # noqa: BLE001 - keep REPL alive
+                print(f"⚠️ 并行分析失败: {e}")
+            print()
             continue
         ans = run_turn(loop, user)
         if ans is None:
