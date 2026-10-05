@@ -174,7 +174,10 @@ def main():
     orchestrator = Orchestrator(client, registry, max_iterations=config.max_iterations)
     brief_fn = lambda: generate_brief(client, registry, max_iterations=config.max_iterations)
     app = build_app(orchestrator, brief_fn)
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    import os
+    host = os.environ.get("AGENT_RADAR_HOST", "127.0.0.1")
+    port = int(os.environ.get("AGENT_RADAR_PORT", "8000"))
+    uvicorn.run(app, host=host, port=port)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,31 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+.venv
+*.egg-info
+
+# Testing
+.pytest_cache
+tests/
+htmlcov/
+.coverage
+
+# Local data (mounted as volumes, not baked into image)
+*.db
+*.sqlite
+
+# Docs (not needed in runtime image)
+docs/
+.superpowers/
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
+Thumbs.db

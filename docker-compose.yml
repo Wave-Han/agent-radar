@@ -1,0 +1,18 @@
+services:
+  agent-radar:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist SQLite database (profile, memory, knowledge base)
+      - agent-data:/app/data
+      # Hot-reload knowledge base documents (re-run `python -m agent_radar.kb` inside container)
+      - ./docs_kb:/app/docs_kb
+    env_file:
+      - .env
+    environment:
+      - AGENT_RADAR_DB_PATH=/app/data/agent_radar.db
+    restart: unless-stopped
+
+volumes:
+  agent-data:
