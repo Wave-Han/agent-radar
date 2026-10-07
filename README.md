@@ -1,5 +1,9 @@
 # AgentRadar
 
+![CI](https://github.com/Wave-Han/agent-radar/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-120%20passed-brightgreen)
+![Python](https://img.shields.io/badge/python-3.11%2B-blue)
+
 对话式 AI agent:实时追踪 AI agent 领域的**行情与趋势**(技术生态 / 就业 / 行业动态),并基于你的个人画像给出**强个性化学习方向**建议。
 
 ## 能力(多 agent 架构)
