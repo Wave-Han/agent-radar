@@ -31,4 +31,5 @@ jobs:
 
       - name: Test summary
         if: always()
-        run: echo "Python ${{ matrix.python-version }}: $(python -m pytest --co -q 2>&1 | tail -1)"
+        run: |
+          echo "Python ${{ matrix.python-version }}: $(python -m pytest --co -q 2>&1 | tail -1)"
