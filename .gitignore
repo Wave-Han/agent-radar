@@ -21,6 +21,9 @@ env/
 *.sqlite3
 data/cache/
 
+# Local writing drafts (not for the public repo)
+docs/spec-loop-metrics.md
+
 # Test / coverage
 .pytest_cache/
 .coverage
